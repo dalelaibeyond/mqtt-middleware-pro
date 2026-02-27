@@ -310,7 +310,7 @@
   "meta": { "topic": "...", "rawType": "msg_type" },
   "deviceId": "gateway_sn",
   "deviceType": "V6800",
-  "messageType": "DOOR_STATE",
+  "messageType": "DOOR_STATE_EVENT",
   "messageId": "uuid_number",
   "data": [{ "moduleId": "extend_module_sn", "moduleIndex": host_gateway_port_index, "door1State": 1, "door2State": 1 }]
 }
@@ -352,16 +352,18 @@
   "deviceType": "V6800",
   "messageType": "QUERY_DOOR_STATE_RESP",
   "messageId": "uuid_number",
-  "moduleIndex": gateway_port_index,
-  "door1State": new_state1,
-  "door2State": new_state2
+  "data": [{
+    "moduleIndex": gateway_port_index,
+    "door1State": new_state1,
+    "door2State": new_state2
+  }]
 }
 // Note:
 // deviceId is extracted from MQTT topic: V6800Upload/{deviceId}/Door
 // Example: V6800Upload/2437871205/Door → deviceId = "2437871205"
 // In SIF, unify new_state, new_state1, new_state2 to door1State and door2State, rule as below:
-// 1) if single door sensor, raw.new_state → sif.door1State, door2State = null
-// 2) if dual door sensor, raw.new_state1 → sif.door1State, raw.new_state2 → sif.door2State
+// 1) if single door sensor, raw.new_state → sif.data[0].door1State, sif.data[0].door2State = null
+// 2) if dual door sensor, raw.new_state1 → sif.data[0].door1State, raw.new_state2 → sif.data[0].door2State
 
 ```
 
@@ -558,11 +560,11 @@
 }
 ```
 
-### 6. `SET_COLOR`
+### 2.5 `SET_COLOR`
 
-Topic: `V6800Download/{deviceId}`
+**Topic:** `V6800Download/{deviceId}`
 
-Message Format
+**Message Format:**
 
 ```jsx
 //raw
@@ -578,12 +580,12 @@ Message Format
   } ]
 }
 
-//sif
+// SIF
 {
   "deviceId": "2437871205",
   "deviceType": "V6800",
   "messageType": "SET_COLOR",
-  "payload": {
+  "data": {
     "moduleIndex": 1,
     "sensorIndex": 10,
     "colorCode": 1
