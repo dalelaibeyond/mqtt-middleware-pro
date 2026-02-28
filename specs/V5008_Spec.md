@@ -1,10 +1,10 @@
-# V5008 Device MQTT Message Spec
+# V5008 Device MQTT Message RAW and SIF Spec
 
 **File Name:** `V5008_Spec.md`
 
-**Version**: v1.2
+**Version**: v1.3
 
-**Date**: 2/22/2026
+**Date**: 2/28/2026
 
 **Scope:** V5008 device raw binary message format and Spec from raw to SIF (Standard Intermediate Format) Conversion
 
@@ -114,7 +114,7 @@ const cmdCode5 = buffer[5];
 const cmdCode6 = buffer[6];
 
 if (cmdCode5 === 0xE4) {
-    // QUERY_COLOR_RESP: OriginalReq is at bytes 5-6 (after DeviceId, before Result)
+    // QUERY_COLOR_RESP: Result is at byte 5, OriginalReq is at bytes 6-7 (after Result)
     cmdCode = 0xE4;
     reqOffset = 5;
     reqLength = 2; // Fixed length for Query Color (E4 + ModAddr)
@@ -129,7 +129,7 @@ if (cmdCode5 === 0xE4) {
 // Read `reqLength` bytes starting at reqOffset -> `originalReq`
 
 // Note: Schema overhead breakdown:
-// - QUERY_COLOR_RESP: Header(1) + DevId(4) + OriginalReq(2) + Result(1) + MsgId(4) = 12 bytes total
+// - QUERY_COLOR_RESP: Header(1) + DevId(4) + Result(1) + OriginalReq(2) + ColorCodes(N) + MsgId(4) = 8 + N bytes total
 // - SET_COLOR_RESP: Header(1) + DevId(4) + Result(1) + OriginalReq(var) + MsgId(4) = 10 + var bytes
 // - CLEAR_ALARM_RESP: Header(1) + DevId(4) + Result(1) + OriginalReq(3) + MsgId(4) = 13 bytes total
 ```
@@ -214,6 +214,23 @@ The parser must iterate through the binary buffer based on these structures to p
   "moduleId": "ModId",
   "data": [{ "sensorIndex": uPos, "isAlarm": false|true, "tagId": "DD344A44" }]
 }
+
+// Note:
+// Fields discarded from raw to SIF:
+//   - Res: Reserved byte not used in SIF (discarded by design)
+//
+// Field transformations:
+//   - Topic[1] → deviceId
+//   - MsgId → messageId
+//   - ModAddr → moduleIndex
+//   - ModId → moduleId
+//   - Total → uTotal
+//   - uPos → data[].sensorIndex
+//   - TagId → data[].tagId
+//
+// isAlarm field creation logic:
+//   - Alarm = 1 → isAlarm = true
+//   - Alarm = 0 → isAlarm = false
 ```
 
 ### 4.3 `TEMP_HUM`
@@ -235,6 +252,25 @@ The parser must iterate through the binary buffer based on these structures to p
   "moduleId": "ModId",
   "data": [{ "sensorIndex": Addr, "temp": xx.xx, "hum": xx.xx }]
 }
+
+// Note:
+// Fields discarded from raw to SIF:
+//   - Res: Reserved byte not used in SIF (discarded by design)
+//
+// Field transformations:
+//   - Topic[1] → deviceId
+//   - MsgId → messageId
+//   - ModAddr → moduleIndex
+//   - ModId → moduleId
+//   - Addr → data[].sensorIndex
+//
+// Parsing logic:
+//   - Fixed 6 slots
+//   - If Addr === 0, skip (no sensor data)
+//   - Use Algorithm A for T_Int/T_Frac and H_Int/H_Frac values
+//
+// Formatting:
+//   - Format temp and hum to float "xx.xx" (Algorithm A)
 ```
 
 ### 4.4 `NOISE_LEVEL`
@@ -256,6 +292,25 @@ The parser must iterate through the binary buffer based on these structures to p
   "moduleId": "ModId",
   "data": [{ "sensorIndex": Addr, "noise": xx.xx }]
 }
+
+// Note:
+// Fields discarded from raw to SIF:
+//   - Res: Reserved byte not used in SIF (discarded by design)
+//
+// Field transformations:
+//   - Topic[1] → deviceId
+//   - MsgId → messageId
+//   - ModAddr → moduleIndex
+//   - ModId → moduleId
+//   - Addr → data[].sensorIndex
+//
+// Parsing logic:
+//   - Fixed 3 slots
+//   - If Addr === 0, skip (no sensor data)
+//   - Use Algorithm A for N_Int/N_Frac values
+//
+// Formatting:
+//   - Format noise to float "xx.xx" (Algorithm A)
 ```
 
 ### 4.5 `DOOR_STATE`
@@ -272,9 +327,26 @@ The parser must iterate through the binary buffer based on these structures to p
   "deviceId": "Topic[1]",
   "messageType": "DOOR_STATE",
   "messageId": "MsgId",
-  "data": [{ "moduleIndex": ModAddr, "moduleId": "ModId", "doorState": State }]
+  "data": [{ "moduleIndex": ModAddr, "moduleId": "ModId", "door1State": State, "door2State": null }]
 }
+
+// Note:
+// Fields discarded from raw to SIF:
+//   - None (all fields are transformed)
+//
+// Field transformations:
+//   - Topic[1] → deviceId
+//   - MsgId → messageId
+//   - ModAddr → data[].moduleIndex
+//   - ModId → data[].moduleId
+//
+// door1State and door2State unification logic:
+//   - V5008 has single door sensor:
+//     * raw.State → sif.data[].door1State
+//     * sif.data[].door2State = null
 ```
+
+
 
 ### 4.6 `DEVICE_INFO`
 
@@ -296,6 +368,24 @@ The parser must iterate through the binary buffer based on these structures to p
   "gwIp": "Gw", //"192.168.0.1",
   "mac": "Mac", //"80:82:91:4E:F6:65"
 }
+
+// Note:
+// Fields discarded from raw to SIF:
+//   - None (all fields are used)
+//
+// Field transformations:
+//   - Topic[1] → deviceId
+//   - MsgId → messageId
+//   - Fw → fwVer
+//   - IP → ip
+//   - Mask → mask
+//   - Gw → gwIp
+//   - Mac → mac
+//
+// Formatting:
+//   - IP, Mask, Gw: Dot-notation String (e.g., "192.168.0.1")
+//   - Mac: Hex String with colons (e.g., "AA:BB:CC...")
+//   - Fw: Use Algorithm D to parse as String
 ```
 
 ### 4.7 `MODULE_INFO`
@@ -315,13 +405,27 @@ The parser must iterate through the binary buffer based on these structures to p
   "messageId": "MsgId",
   "data": [{ "moduleIndex": ModAddr, "fwVer": "Fw" }]
 }
+
+// Note:
+// Fields discarded from raw to SIF:
+//   - None (all fields are used)
+//
+// Field transformations:
+//   - Topic[1] → deviceId
+//   - MsgId → messageId
+//   - ModAddr → data[].moduleIndex
+//   - Fw → data[].fwVer
+//
+// Parsing logic:
+//   - N = (Buffer.length - 6) / 5 (number of module entries)
+//   - Loop N times to extract module info
 ```
 
 ### 4.8 `QUERY_COLOR_RESP`
 
 - **Topic:** `V5008Upload/{deviceId}/OpeAck`
 - **Header:** `0xAA`
-- **Schema:** `Header(1) + DeviceId(4) + OriginalReq(2) + Result(1) + [ColorCode × N] + MsgId(4)`
+- **Schema:** `Header(1) + DeviceId(4) + Result(1) + OriginalReq(2) + [ColorCode × N] + MsgId(4)`
     - OriginalReq: `[E4]+[ModAddr]`
     - Payload: Color codes for all sensors (variable count N)
 - **Logic:** `N = Buffer.length - 12` (number of color codes in payload)
@@ -339,10 +443,29 @@ The parser must iterate through the binary buffer based on these structures to p
   "moduleIndex": 1,
   "data": [0, 0, 0, 13, 13, 8]
 }
+
+// Note:
+// Fields discarded from raw to SIF:
+//   - None (all fields are used)
+//
+// Field transformations:
+//   - DeviceId → deviceId
+//   - MsgId → messageId
+//   - OriginalReq → originalReq
+//
+// moduleIndex extraction logic:
+//   - moduleIndex is extracted from byte 1 of originalReq hex string
+//   - Example: originalReq = "E401" → moduleIndex = 0x01 = 1
+//
+// data array structure:
+//   - data is a flat array of color codes (not objects)
+//   - Each value is the color code for corresponding sensor position
+//   - Count N = Buffer.length - 12
+//
+// result field creation logic:
+//   - Result = 0xA1 → result = "Success"
+//   - Result = 0xA0 → result = "Failure"
 ```
-**Note:**
-- `moduleIndex` is extracted from byte 1 of originalReq hex string (e.g., originalReq = "E401" → moduleIndex = 0x01 = 1)
-- `data` array contains color codes for sensors. The count N is calculated as `Buffer.length - 12`. Each value is the color code for the corresponding sensor position.
 
 ### 4.9 `SET_COLOR_RESP`
 
@@ -365,18 +488,35 @@ The parser must iterate through the binary buffer based on these structures to p
   "moduleIndex": 1,
   "originalReq": "E10105020601"
 }
+
+// Note:
+// Fields discarded from raw to SIF:
+//   - None (all fields are used)
+//
+// Field transformations:
+//   - DeviceId → deviceId
+//   - MsgId → messageId
+//   - OriginalReq → originalReq
+//
+// moduleIndex extraction logic:
+//   - moduleIndex is extracted from byte 1 of originalReq hex string
+//   - Example: originalReq = "E101..." → moduleIndex = 0x01 = 1
+//
+// originalReq format breakdown:
+//   - Format: [E1][ModAddr][uIndex1][colorCode1][uIndex2][colorCode2]...
+//   - Example: "E10105020601" = E1 + 01 + 05 + 01 + 02 + 06 + 01
+//     - E1: Command code
+//     - 01: Module index
+//     - 05: Sensor index 1
+//     - 01: Color code for sensor 1
+//     - 02: Sensor index 2
+//     - 06: Color code for sensor 2
+//     - 01: Color code for sensor 3 (if present)
+//
+// result field creation logic:
+//   - Result = 0xA1 → result = "Success"
+//   - Result = 0xA0 → result = "Failure"
 ```
-**Note:**
-- `moduleIndex` is extracted from byte 1 of originalReq hex string (e.g., originalReq = "E101..." → moduleIndex = 0x01 = 1)
-- `originalReq` format breakdown: `[E1][ModAddr][uIndex1][colorCode1][uIndex2][colorCode2]...`
-  - Example: "E10105020601" = E1 + 01 + 05 + 01 + 02 + 06 + 01
-    - E1: Command code
-    - 01: Module index
-    - 05: Sensor index 1
-    - 01: Color code for sensor 1
-    - 02: Sensor index 2
-    - 06: Color code for sensor 2
-    - 01: Color code for sensor 3 (if present)
 
 ### 4.10 `CLEAR_ALARM_RESP`
 
@@ -398,15 +538,31 @@ The parser must iterate through the binary buffer based on these structures to p
   "moduleIndex": 1,
   "originalReq": "E20106"
 }
+
+// Note:
+// Fields discarded from raw to SIF:
+//   - None (all fields are used)
+//
+// Field transformations:
+//   - DeviceId → deviceId
+//   - MsgId → messageId
+//   - OriginalReq → originalReq
+//
+// moduleIndex extraction logic:
+//   - moduleIndex is extracted from byte 1 of originalReq hex string
+//   - Example: originalReq = "E201..." → moduleIndex = 0x01 = 1
+//
+// originalReq format:
+//   - Format: [E2][ModAddr][uIndex]
+//   - Example: "E20106" = E2 + 01 + 06
+//     - E2: Command code
+//     - 01: Module index
+//     - 06: Sensor index (uIndex)
+//
+// result field creation logic:
+//   - Result = 0xA1 → result = "Success"
+//   - Result = 0xA0 → result = "Failure"
 ```
-**Note:**
-- `moduleIndex` is extracted from byte 1 of originalReq hex string (e.g., originalReq = "E201..." → moduleIndex = 0x01 = 1)
-- `originalReq` format: `[E2][ModAddr][uIndex]`
-  - Example: "E20106" = E2 + 01 + 06
-    - E2: Command code
-    - 01: Module index
-    - 06: Sensor index (uIndex)
-- **Result Mapping Note:** This uses inverted logic where 0xA1=Success and 0xA0=Failure as defined by the device protocol.
 
 ## 5. Query or Set Command Messages (App → Broker → Device)
 
@@ -427,6 +583,17 @@ The parser must iterate through the binary buffer based on these structures to p
   "messageType": "QUERY_DEVICE_INFO",
   "data": {}
 }
+
+// Note:
+// Fields discarded from SIF to Raw:
+//   - deviceType: Device type not sent in raw message
+//   - messageType: Message type not sent in raw message
+//   - data: Empty data object not sent in raw message
+//
+// Field transformations:
+//   - deviceId → Not used (extracted from topic in middleware)
+//   - messageType "QUERY_DEVICE_INFO" → msg_type "get_devies_init_req" (Note: msg_type not in spec, should be "get_device_info_req")
+//   - msg_code = 200 (fixed value)
 ```
 
 ### 5.2 `QUERY_MODULE_INFO`
@@ -446,6 +613,17 @@ The parser must iterate through the binary buffer based on these structures to p
   "messageType": "QUERY_MODULE_INFO",
   "data": {}
 }
+
+// Note:
+// Fields discarded from SIF to Raw:
+//   - deviceType: Device type not sent in raw message
+//   - messageType: Message type not sent in raw message
+//   - data: Empty data object not sent in raw message
+//
+// Field transformations:
+//   - deviceId → Not used (extracted from topic in middleware)
+//   - messageType "QUERY_MODULE_INFO" → msg_type "get_module_info_req" (Note: msg_type not in spec, should be "get_module_info_req")
+//   - msg_code = 200 (fixed value)
 ```
 
 ### 5.3 `QUERY_RFID_SNAPSHOT`
@@ -465,6 +643,17 @@ The parser must iterate through the binary buffer based on these structures to p
   "messageType": "QUERY_RFID_SNAPSHOT",
   "data": {"moduleIndex": 4}
 }
+
+// Note:
+// Fields discarded from SIF to Raw:
+//   - deviceType: Device type not sent in raw message
+//   - messageType: Message type not sent in raw message
+//   - data.sensorIndex: Not sent in raw message (only moduleIndex is sent)
+//
+// Field transformations:
+//   - deviceId → Not used (extracted from topic in middleware)
+//   - data.moduleIndex → [moduleIndex] (array format)
+//   - messageType "QUERY_RFID_SNAPSHOT" → msg_type "u_state_req"
 ```
 
 ### 5.4 `QUERY_DOOR_STATE`
@@ -484,6 +673,17 @@ The parser must iterate through the binary buffer based on these structures to p
   "messageType": "QUERY_DOOR_STATE",
   "data": {"moduleIndex": 4}
 }
+
+// Note:
+// Fields discarded from SIF to Raw:
+//   - deviceType: Device type not sent in raw message
+//   - messageType: Message type not sent in raw message
+//   - data.sensorIndex: Not sent in raw message (only moduleIndex is sent)
+//
+// Field transformations:
+//   - deviceId → Not used (extracted from topic in middleware)
+//   - data.moduleIndex → [moduleIndex] (array format)
+//   - messageType "QUERY_DOOR_STATE" → msg_type "door_state_req"
 ```
 
 ### 5.5 `QUERY_TEMP_HUM`
@@ -503,6 +703,17 @@ The parser must iterate through the binary buffer based on these structures to p
   "messageType": "QUERY_TEMP_HUM",
   "data": {"moduleIndex": 4}
 }
+
+// Note:
+// Fields discarded from SIF to Raw:
+//   - deviceType: Device type not sent in raw message
+//   - messageType: Message type not sent in raw message
+//   - data.sensorIndex: Not sent in raw message (only moduleIndex is sent)
+//
+// Field transformations:
+//   - deviceId → Not used (extracted from topic in middleware)
+//   - data.moduleIndex → [moduleIndex] (array format)
+//   - messageType "QUERY_TEMP_HUM" → msg_type "temper_humidity_req"
 ```
 
 ### 5.6 `SET_COLOR`
@@ -526,6 +737,22 @@ The parser must iterate through the binary buffer based on these structures to p
     "colorCode": 1
   }
 }
+
+// Note:
+// Fields discarded from SIF to Raw:
+//   - deviceType: Device type not sent in raw message
+//   - messageType: Message type not sent in raw message
+//   - data.sensorIndex: Not sent in raw message (mapped to u_index)
+//
+// Field transformations:
+//   - deviceId → Not used (extracted from topic in middleware)
+//   - data.moduleIndex → data[].host_gateway_port_index
+//   - data.sensorIndex → data[].u_color_data[].u_index
+//   - data.colorCode → data[].u_color_data[].color_code
+//   - messageType "SET_COLOR" → msg_type "set_module_property_req"
+//   - set_property_type = 8001 (fixed value)
+//   - module_type = 2 (fixed value)
+//   - extend_module_sn = null
 ```
 
 ### 5.7 `QUERY_COLOR`
@@ -545,6 +772,18 @@ The parser must iterate through the binary buffer based on these structures to p
   "messageType": "QUERY_COLOR",
   "data": {"moduleIndex": 4 }
 }
+
+// Note:
+// Fields discarded from SIF to Raw:
+//   - deviceType: Device type not sent in raw message
+//   - messageType: Message type not sent in raw message
+//   - data.sensorIndex: Not sent in raw message (only moduleIndex is sent)
+//
+// Field transformations:
+//   - deviceId → Not used (extracted from topic in middleware)
+//   - data.moduleIndex → [moduleIndex] (array format)
+//   - messageType "QUERY_COLOR" → msg_type "get_u_color"
+//   - code = 0 (default value, may vary)
 ```
 
 ### 5.8 `CLEAR_ALARM`
@@ -564,4 +803,17 @@ The parser must iterate through the binary buffer based on these structures to p
   "messageType": "CLEAR_ALARM",
   "data": {"moduleIndex": 1, "sensorIndex": 10}
 }
+
+// Note:
+// Fields discarded from SIF to Raw:
+//   - deviceType: Device type not sent in raw message
+//   - messageType: Message type not sent in raw message
+//
+// Field transformations:
+//   - deviceId → Not used (extracted from topic in middleware)
+//   - data.moduleIndex → data[].index
+//   - data.sensorIndex → data[].warning_data[0]
+//   - messageType "CLEAR_ALARM" → msg_type "clear_u_warning"
+//   - code = 0 (default value, may vary)
+//   - data[].warning_data = [sensorIndex] (array format)
 ```

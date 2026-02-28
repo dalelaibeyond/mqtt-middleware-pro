@@ -1,10 +1,10 @@
-# V6800 Device MQTT Message Spec
+# V6800 Device MQTT Message RAW and SIF Spec
 
 **File Name**: `v6800_spec.md`
 
-**Version**: v1.2
+**Version**: v1.3
 
-**Date**: 2/22/2026
+**Date**: 2/28/2026
 
 **Scope**: V6800 device raw JSON message format and Spec from raw to SIF (Standard Intermediate Format) Conversion
 
@@ -20,7 +20,7 @@
 
 **Message Format:**
 
-```json
+```jsx
 // Raw format
 {
   "msg_type": "devies_init_req",
@@ -52,6 +52,24 @@
   "mac": "gateway_mac",
   "data": [{ "moduleIndex": module_index, "fwVer": "module_sw_version", "moduleId": "module_sn", "uTotal": module_u_num }]
 }
+
+// Note:
+// Fields discarded from raw to SIF:
+//   - gateway_ip: IP address not needed in SIF
+//   - gateway_mac: MAC address not needed in SIF
+//   - data[].module_type: Module type not needed in SIF
+//   - data[].module_m_num: Manufacturing number not needed in SIF
+//   - data[].module_supplier: Supplier info not needed in SIF
+//   - data[].module_brand: Brand info not needed in SIF
+//   - data[].module_model: Model info not needed in SIF
+//
+// Field transformations:
+//   - gateway_sn → deviceId
+//   - uuid_number → messageId
+//   - data[].module_sn → data[].moduleId
+//   - data[].module_index → data[].moduleIndex
+//   - data[].module_u_num → data[].uTotal
+//   - data[].module_sw_version → data[].fwVer
 ```
 
 ### 2. `MOD_CHNG_EVENT`
@@ -60,7 +78,7 @@
 
 **Message Format:**
 
-```json
+```jsx
 // Raw format
 {
   "msg_type": "devices_changed_req",
@@ -90,6 +108,22 @@
   "messageId": "uuid_number",
   "data": [{ "moduleIndex": module_index, "fwVer": "module_sw_version", "moduleId": "module_sn", "uTotal": module_u_num }]
 }
+
+// Note:
+// Fields discarded from raw to SIF:
+//   - data[].module_type: Module type not needed in SIF
+//   - data[].module_m_num: Manufacturing number not needed in SIF
+//   - data[].module_supplier: Supplier info not needed in SIF
+//   - data[].module_brand: Brand info not needed in SIF
+//   - data[].module_model: Model info not needed in SIF
+//
+// Field transformations:
+//   - gateway_sn → deviceId
+//   - uuid_number → messageId
+//   - data[].module_sn → data[].moduleId
+//   - data[].module_index → data[].moduleIndex
+//   - data[].module_u_num → data[].uTotal
+//   - data[].module_sw_version → data[].fwVer
 ```
 
 ### 3. `HEARTBEAT`
@@ -98,7 +132,7 @@
 
 **Message Format:**
 
-```json
+```jsx
 // Raw format
 {
   "msg_type": "heart_beat_req",
@@ -128,9 +162,25 @@
   "messageId": "uuid_number",
   "data": [{ "moduleIndex": module_index, "moduleId": "module_sn", "uTotal": module_u_num }]
 }
-```
 
-**Note:** deviceId is extracted from `module_sn` field (not `gateway_sn` as in other messages). The following raw fields are intentionally discarded in SIF: `module_type`, `bus_V`, `bus_I`, `main_power`, `backup_power`.
+// Note:
+// deviceId is extracted from module_sn field (not gateway_sn as in other messages).
+//
+// Fields discarded from raw to SIF:
+//   - module_type: Module type not needed in SIF
+//   - bus_V: Bus voltage not needed in SIF
+//   - bus_I: Bus current not needed in SIF
+//   - main_power: Main power status not needed in SIF
+//   - backup_power: Backup power status not needed in SIF
+//   - data[].module_m_num: Manufacturing number not needed in SIF
+//
+// Field transformations:
+//   - module_sn → deviceId
+//   - uuid_number → messageId
+//   - data[].module_sn → data[].moduleId
+//   - data[].module_index → data[].moduleIndex
+//   - data[].module_u_num → data[].uTotal
+```
 
 ### 4. `RFID_EVENT`
 
@@ -138,7 +188,7 @@
 
 **Message Format:**
 
-```json
+```jsx
 // Raw format
 {
   "msg_type": "u_state_changed_notify_req",
@@ -162,14 +212,28 @@
       "moduleIndex": host_gateway_port_index,
       "moduleId": "extend_module_sn",
       "data": [{ "sensorIndex": u_index, "action": "DETACHED", "tagId": "tag_code", "isAlarm": false|true }]
-  }]
+    }]
 }
 
 // Note:
-1) new_state = 1, old_state = 0 => action = "ATTACHED"
-2) new_state = 0, old_state = 1 => action = "DETACHED"
-3) warning = 1 => isAlarm = true
-4) warning = 0 => isAlarm = false
+// Fields discarded from raw to SIF:
+//   - data[].u_data[].old_state: Old state not needed in SIF
+//
+// Field transformations:
+//   - gateway_sn → deviceId
+//   - uuid_number → messageId
+//   - data[].host_gateway_port_index → data[].moduleIndex
+//   - data[].extend_module_sn → data[].moduleId
+//   - data[].u_data[].u_index → data[].data[].sensorIndex
+//   - data[].u_data[].tag_code → data[].data[].tagId
+//
+// Action field creation logic:
+//   - new_state = 1, old_state = 0 → action = "ATTACHED"
+//   - new_state = 0, old_state = 1 → action = "DETACHED"
+//
+// isAlarm field creation logic:
+//   - warning = 1 → isAlarm = true
+//   - warning = 0 → isAlarm = false
 ```
 
 ### 5. `RFID_SNAPSHOT`
@@ -178,7 +242,7 @@
 
 **Message Format:**
 
-```json
+```jsx
 // Raw format
 {
   "msg_type": "u_state_resp",
@@ -207,8 +271,21 @@
 }
 
 // Note:
-1) warning = 1 => isAlarm = true
-3) warning = 0 => isAlarm = false
+// Fields discarded from raw to SIF:
+//   - code: Response code not needed in SIF
+//   - data[].u_data[].u_state: State not needed in SIF (snapshot only)
+//
+// Field transformations:
+//   - gateway_sn → deviceId
+//   - uuid_number → messageId
+//   - data[].host_gateway_port_index → data[].moduleIndex
+//   - data[].extend_module_sn → data[].moduleId
+//   - data[].u_data[].u_index → data[].data[].sensorIndex
+//   - data[].u_data[].tag_code → data[].data[].tagId
+//
+// isAlarm field creation logic:
+//   - warning = 1 → isAlarm = true
+//   - warning = 0 → isAlarm = false
 ```
 
 ### 6. `TEMP_HUM`
@@ -217,7 +294,7 @@
 
 **Message Format:**
 
-```json
+```jsx
 // Raw format
 // Note: Device may send "temper_humidity_exception_nofity_req" (typo: "nofity" instead of "notify")
 // Both spellings are accepted and mapped to TEMP_HUM messageType
@@ -245,11 +322,25 @@
       "moduleIndex": host_gateway_port_index,
       "moduleId": "extend_module_sn",
       "data": [{ "sensorIndex": temper_position, "temp": temper_swot, "hum": hygrometer_swot}]
-  }]
+    }]
 }
 
 // Note:
-1) format temper_swot and hygrometer_swot to float "xx.xx"
+// Fields discarded from raw to SIF:
+//   - None (all fields are used)
+//
+// Field transformations:
+//   - gateway_sn → deviceId
+//   - uuid_number → messageId
+//   - data[].host_gateway_port_index → data[].moduleIndex
+//   - data[].extend_module_sn → data[].moduleId
+//   - data[].th_data[].temper_position → data[].data[].sensorIndex
+//   - data[].th_data[].temper_swot → data[].data[].temp
+//   - data[].th_data[].hygrometer_position → data[].data[].sensorIndex (same index)
+//   - data[].th_data[].hygrometer_swot → data[].data[].hum
+//
+// Formatting:
+//   - Format temper_swot and hygrometer_swot to float "xx.xx"
 ```
 
 ### 7. `QUERY_TEMP_HUM_RESP`
@@ -258,7 +349,7 @@
 
 **Message Format:**
 
-```json
+```jsx
 // Raw format
 {
   "msg_type": "temper_humidity_resp",
@@ -287,7 +378,21 @@
 }
 
 // Note:
-1) format temper_swot and hygrometer_swot to float "xx.xx"
+// Fields discarded from raw to SIF:
+//   - code: Response code not needed in SIF
+//
+// Field transformations:
+//   - gateway_sn → deviceId
+//   - uuid_number → messageId
+//   - data[].host_gateway_port_index → data[].moduleIndex
+//   - data[].extend_module_sn → data[].moduleId
+//   - data[].th_data[].temper_position → data[].data[].sensorIndex
+//   - data[].th_data[].temper_swot → data[].data[].temp
+//   - data[].th_data[].hygrometer_position → data[].data[].sensorIndex (same index)
+//   - data[].th_data[].hygrometer_swot → data[].data[].hum
+//
+// Formatting:
+//   - Format temper_swot and hygrometer_swot to float "xx.xx"
 ```
 
 ### 8. `DOOR_STATE_EVENT`
@@ -296,7 +401,7 @@
 
 **Message Format:**
 
-```json
+```jsx
 // Raw format
 {
   "msg_type": "door_state_changed_notify_req",
@@ -314,9 +419,24 @@
   "messageId": "uuid_number",
   "data": [{ "moduleId": "extend_module_sn", "moduleIndex": host_gateway_port_index, "door1State": 1, "door2State": 1 }]
 }
-// Note: In SIF, unify new_state, new_state1, new_state2 to door1State and door2State, rule as below:
-// 1) if single door sensor, raw.data.new_state → sif.data.door1State, sif.data.door2State = null
-// 2) if dual door sensor, raw.data.new_state1 → sif.data.door1State, raw.data.new_state2 → sif.data.door2State
+
+// Note:
+// Fields discarded from raw to SIF:
+//   - None (all fields are transformed)
+//
+// Field transformations:
+//   - gateway_sn → deviceId
+//   - uuid_number → messageId
+//   - data[].extend_module_sn → data[].moduleId
+//   - data[].host_gateway_port_index → data[].moduleIndex
+//
+// door1State and door2State unification logic:
+//   - Single door sensor (has new_state field):
+//     * raw.data[].new_state → sif.data[].door1State
+//     * sif.data[].door2State = null
+//   - Dual door sensor (has new_state1 and new_state2 fields):
+//     * raw.data[].new_state1 → sif.data[].door1State
+//     * raw.data[].new_state2 → sif.data[].door2State
 ```
 
 ### 9. `QUERY_DOOR_STATE_RESP`
@@ -325,7 +445,7 @@
 
 **Message Format:**
 
-```json
+```jsx
 // Raw format (single door)
 {
   "msg_type": "door_state_resp",
@@ -358,13 +478,27 @@
     "door2State": new_state2
   }]
 }
+
 // Note:
 // deviceId is extracted from MQTT topic: V6800Upload/{deviceId}/Door
 // Example: V6800Upload/2437871205/Door → deviceId = "2437871205"
-// In SIF, unify new_state, new_state1, new_state2 to door1State and door2State, rule as below:
-// 1) if single door sensor, raw.new_state → sif.data[0].door1State, sif.data[0].door2State = null
-// 2) if dual door sensor, raw.new_state1 → sif.data[0].door1State, raw.new_state2 → sif.data[0].door2State
-
+//
+// Fields discarded from raw to SIF:
+//   - code: Response code not needed in SIF
+//   - gateway_port_index: Moved to data[].moduleIndex
+//
+// Field transformations:
+//   - Topic[1] → deviceId
+//   - uuid_number → messageId
+//   - gateway_port_index → data[].moduleIndex
+//
+// door1State and door2State unification logic:
+//   - Single door sensor (has new_state field):
+//     * raw.new_state → sif.data[0].door1State
+//     * sif.data[0].door2State = null
+//   - Dual door sensor (has new_state1 and new_state2 fields):
+//     * raw.new_state1 → sif.data[0].door1State
+//     * raw.new_state2 → sif.data[0].door2State
 ```
 
 ### 10. `SET_COLOR_RESP`
@@ -373,7 +507,7 @@
 
 **Message Format:**
 
-```json
+```jsx
 // Raw format
 {
   "msg_type": "set_module_property_result_req",
@@ -392,10 +526,21 @@
   "messageId": "uuid_number",
   "data": [{ "moduleIndex":host_gateway_port_index, "moduleId": "extend_module_sn", "result": "Success"|"Failure" }]
 }
-// Note:
-// 1) raw.data.set_property_result = 1 → sif.data.result = "Failure"
-// 2) raw.data.set_property_result = 0 → sif.data.result = "Success"
 
+// Note:
+// Fields discarded from raw to SIF:
+//   - set_property_type: Property type identifier not needed in SIF
+//   - data[].module_type: Module type not needed in SIF
+//
+// Field transformations:
+//   - gateway_sn → deviceId
+//   - uuid_number → messageId
+//   - data[].host_gateway_port_index → data[].moduleIndex
+//   - data[].extend_module_sn → data[].moduleId
+//
+// result field creation logic:
+//   - set_property_result = 1 → result = "Failure"
+//   - set_property_result = 0 → result = "Success"
 ```
 
 ### 11. `QUERY_COLOR_RESP`
@@ -404,7 +549,7 @@
 
 **Message Format:**
 
-```json
+```jsx
 // Raw format
 {
   "msg_type": "u_color",
@@ -431,7 +576,21 @@
       "data": [{ "sensorIndex": index, "colorName": "color", "colorCode": code }]
     }]
 }
-// Note: The `code` field at the top level of the raw message is ignored in SIF as it represents the overall response status, not per-sensor data.
+
+// Note:
+// Fields discarded from raw to SIF:
+//   - code: Response code not needed in SIF (represents overall status, not per-sensor data)
+//   - count: Count field not needed in SIF
+//
+// Field transformations:
+//   - gateway_id → deviceId
+//   - uuid_number → messageId
+//   - data[].index → data[].moduleIndex
+//   - data[].module_id → data[].moduleId
+//   - data[].u_num → data[].uTotal
+//   - data[].color_data[].index → data[].data[].sensorIndex
+//   - data[].color_data[].color → data[].data[].colorName
+//   - data[].color_data[].code → data[].data[].colorCode
 ```
 
 ### 12. `CLEAR_ALARM_RESP`
@@ -440,7 +599,7 @@
 
 **Message Format:**
 
-```json
+```jsx
 // Raw format
 {
   "msg_type": "clear_u_warning",
@@ -460,9 +619,23 @@
   "messageId": "uuid_number",
   "data": [{ "moduleIndex": index, "moduleId": "module_id", "uTotal": u_num, "result": "Success"|"Failure" }]
 }
+
 // Note:
-// ctr_flag = true → result = "Success"
-// ctr_flag = false → result = "Failure"
+// Fields discarded from raw to SIF:
+//   - count: Count field not needed in SIF
+//   - code: Response code not needed in SIF
+//   - data[].ctr_flag: Control flag transformed to result field
+//
+// Field transformations:
+//   - gateway_id → deviceId
+//   - uuid_number → messageId
+//   - data[].index → data[].moduleIndex
+//   - data[].module_id → data[].moduleId
+//   - data[].u_num → data[].uTotal
+//
+// result field creation logic:
+//   - ctr_flag = true → result = "Success"
+//   - ctr_flag = false → result = "Failure"
 ```
 
 ## Part#2 Query or Set Command Messages (App → Broker → Device)
@@ -473,7 +646,7 @@
 
 **Message Format:**
 
-```json
+```jsx
 // Raw
 {
   "msg_type": "get_devies_init_req",
@@ -487,6 +660,17 @@
   "messageType": "QUERY_DEV_MOD_INFO",
   "data": {}
 }
+
+// Note:
+// Fields discarded from SIF to Raw:
+//   - deviceType: Device type not sent in raw message
+//   - messageType: Message type not sent in raw message
+//   - data: Empty data object not sent in raw message
+//
+// Field transformations:
+//   - deviceId → Not used (extracted from topic in middleware)
+//   - messageType "QUERY_DEV_MOD_INFO" → msg_type "get_devies_init_req"
+//   - msg_code = 200 (fixed value)
 ```
 
 ### 2.2 `QUERY_RFID_SNAPSHOT`
@@ -495,7 +679,7 @@
 
 **Message Format:**
 
-```json
+```jsx
 // Raw format
 {
   "msg_type": "u_state_req",
@@ -506,10 +690,24 @@
 // SIF
 {
   "deviceId": "2437871205",
-  "deviceType": "V6800", 
+  "deviceType": "V6800",
   "messageType": "QUERY_RFID_SNAPSHOT",
   "data": {"moduleIndex": 4}
 }
+
+// Note:
+// Fields discarded from SIF to Raw:
+//   - deviceType: Device type not sent in raw message
+//   - messageType: Message type not sent in raw message
+//   - data.moduleId: Not sent (extend_module_sn set to null)
+//   - data.sensorIndex: Not sent (u_index_list set to null)
+//
+// Field transformations:
+//   - deviceId → gateway_sn
+//   - data.moduleIndex → data[].host_gateway_port_index
+//   - messageType "QUERY_RFID_SNAPSHOT" → msg_type "u_state_req"
+//   - data[].extend_module_sn = null
+//   - data[].u_index_list = null
 ```
 
 ### 2.3 `QUERY_DOOR_STATE`
@@ -518,7 +716,7 @@
 
 **Message Format:**
 
-```json
+```jsx
 // Raw format
 {
   "msg_type": "door_state_req",
@@ -530,10 +728,22 @@
 // SIF Format
 {
   "deviceId": "2437871205",
-  "deviceType": "V6800", 
+  "deviceType": "V6800",
   "messageType": "QUERY_DOOR_STATE",
   "data": {"moduleIndex": 4}
 }
+
+// Note:
+// Fields discarded from SIF to Raw:
+//   - deviceType: Device type not sent in raw message
+//   - messageType: Message type not sent in raw message
+//   - data.moduleId: Not sent (extend_module_sn set to null)
+//
+// Field transformations:
+//   - deviceId → gateway_sn
+//   - data.moduleIndex → host_gateway_port_index
+//   - messageType "QUERY_DOOR_STATE" → msg_type "door_state_req"
+//   - extend_module_sn = null
 ```
 
 ### 2.4 `QUERY_TEMP_HUM`
@@ -542,7 +752,7 @@
 
 **Message Format:**
 
-```json
+```jsx
 // Raw format
 {
   "msg_type": "temper_humidity_req",
@@ -554,10 +764,23 @@
 // SIF format
 {
   "deviceId": "2437871205",
-  "deviceType": "V6800", 
+  "deviceType": "V6800",
   "messageType": "QUERY_TEMP_HUM",
   "data": {"moduleIndex": 4}
 }
+
+// Note:
+// Fields discarded from SIF to Raw:
+//   - deviceType: Device type not sent in raw message
+//   - messageType: Message type not sent in raw message
+//   - data.moduleId: Not sent (extend_module_sn set to null)
+//
+// Field transformations:
+//   - deviceId → gateway_sn
+//   - data.moduleIndex → data[0] (array of port indices)
+//   - messageType "QUERY_TEMP_HUM" → msg_type "temper_humidity_req"
+//   - extend_module_sn = null
+//   - data = [moduleIndex] (array format)
 ```
 
 ### 2.5 `SET_COLOR`
@@ -591,6 +814,22 @@
     "colorCode": 1
   }
 }
+
+// Note:
+// Fields discarded from SIF to Raw:
+//   - deviceType: Device type not sent in raw message
+//   - messageType: Message type not sent in raw message
+//   - data.moduleId: Not sent (extend_module_sn set to null)
+//
+// Field transformations:
+//   - deviceId → gateway_sn
+//   - data.moduleIndex → data[].host_gateway_port_index
+//   - data.sensorIndex → data[].u_color_data[].u_index
+//   - data.colorCode → data[].u_color_data[].color_code
+//   - messageType "SET_COLOR" → msg_type "set_module_property_req"
+//   - set_property_type = 8001 (fixed value)
+//   - module_type = 2 (fixed value)
+//   - extend_module_sn = null
 ```
 
 ### 2.6 `QUERY_COLOR`
@@ -599,7 +838,7 @@
 
 **Message Format:**
 
-```json
+```jsx
 // Raw format
 {
   "msg_type": "get_u_color",
@@ -609,10 +848,23 @@
 // SIF format
 {
   "deviceId": "2437871205",
-  "deviceType": "V6800", 
+  "deviceType": "V6800",
   "messageType": "QUERY_COLOR",
   "data": {"moduleIndex": 4 }
 }
+
+// Note:
+// Fields discarded from SIF to Raw:
+//   - deviceType: Device type not sent in raw message
+//   - messageType: Message type not sent in raw message
+//   - data.sensorIndex: Not sent in raw message
+//
+// Field transformations:
+//   - deviceId → Not used (extracted from topic in middleware)
+//   - data.moduleIndex → data[0] (array of port indices)
+//   - messageType "QUERY_COLOR" → msg_type "get_u_color"
+//   - code = 0 (default value, may vary)
+//   - data = [moduleIndex] (array format)
 ```
 
 ### 2.7 `CLEAR_ALARM`
@@ -621,7 +873,7 @@
 
 **Message Format:**
 
-```json
+```jsx
 // Raw format
 {
   "msg_type": "clear_u_warning",
@@ -636,6 +888,19 @@
   "messageType": "CLEAR_ALARM",
   "data": {"moduleIndex": 4, "sensorIndex": 10}
 }
+
+// Note:
+// Fields discarded from SIF to Raw:
+//   - deviceType: Device type not sent in raw message
+//   - messageType: Message type not sent in raw message
+//
+// Field transformations:
+//   - deviceId → Not used (extracted from topic in middleware)
+//   - data.moduleIndex → data[].index
+//   - data.sensorIndex → data[].warning_data[0]
+//   - messageType "CLEAR_ALARM" → msg_type "clear_u_warning"
+//   - code = 0 (default value, may vary)
+//   - data[].warning_data = [sensorIndex] (array format)
 ```
 
 ## Note
